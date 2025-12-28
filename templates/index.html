@@ -265,18 +265,28 @@
     // ... (保留 CSV 匯入匯出函數，與之前相同，省略以節省篇幅)
     function exportCSV() {
         const rows = document.querySelectorAll('.item-row');
+    
+        // 1. 先提取並過濾資料
         const data = Array.from(rows).map(row => ({
             name: row.querySelector('.name').value,
             tracking: row.querySelector('.tracking').value,
             weight: row.querySelector('.weight').value
-        })).filter(i => i.name || i.weight); else return alert("無資料可匯出");
+        })).filter(i => i.name.trim() !== "" || i.weight !== ""); // 確保過濾掉完全空白的列
+
+        // 2. 進行判斷
+        if (data.length === 0) {
+            return alert("無資料可匯出");
+        }
+
+        // 3. 執行匯出
         const csv = Papa.unparse(data);
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
-        link.download = "item_list.csv";
+        link.download = `item_list_${new Date().toISOString().slice(0,10)}.csv`;
         link.click();
     }
+    
     function importCSV(input) {
         if (input.files && input.files[0]) {
             Papa.parse(input.files[0], {
