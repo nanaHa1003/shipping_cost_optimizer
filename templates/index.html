@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>集貨大師 - 運費優化專家</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <style>
+        :root { --primary-color: #4f46e5; --bg-light: #f9fafb; }
+        body { background-color: var(--bg-light); font-family: 'Inter', system-ui, sans-serif; }
+        .card { border: none; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .settings-panel { background: white; border-left: 4px solid var(--primary-color); }
+        .sticky-summary { position: sticky; top: 20px; }
+        .item-row:hover { background-color: #f3f4f6; }
+        .btn-primary { background-color: var(--primary-color); border: none; }
+        .parcel-card { border-left: 5px solid #10b981; }
+        /* 確保截圖區域背景為白色，避免透明 */
+        #printable-area { background-color: white; padding: 20px; border-radius: 12px; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark bg-dark mb-4">
+    <div class="container">
+        <span class="navbar-brand"><i class="bi bi-box-seam me-2"></i>集貨費用優化計算機</span>
+    </div>
+</nav>
+
+<div class="container pb-5">
+    <div class="row g-4">
+        <div class="col-lg-4">
+            <div class="sticky-summary">
+                <div class="card settings-panel mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3"><i class="bi bi-gear-fill me-2"></i>計費規則設定</h5>
+                        <div class="row g-2">
+                            <div class="col-6 mb-2">
+                                <label class="small fw-bold">首重 (NT$)</label>
+                                <input type="number" id="cfg_first" class="form-control" value="137">
+                            </div>
+                            <div class="col-6 mb-2">
+                                <label class="small fw-bold">續重 (NT$)</label>
+                                <input type="number" id="cfg_next" class="form-control" value="112">
+                            </div>
+                            <div class="col-6 mb-2">
+                                <label class="small fw-bold">免加價件數</label>
+                                <input type="number" id="cfg_threshold" class="form-control" value="8">
+                            </div>
+                            <div class="col-6 mb-2">
+                                <label class="small fw-bold">超件費/件</label>
+                                <input type="number" id="cfg_surcharge" class="form-control" value="5">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                </div>
+        </div>
+
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+                    <h5 class="mb-0">物品清單</h5>
+                    <div class="btn-group">
+                        <button class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('csv-file').click()"><i class="bi bi-file-earmark-arrow-up"></i> 匯入</button>
+                        <button class="btn btn-outline-secondary btn-sm" onclick="exportCSV()"><i class="bi bi-file-earmark-arrow-down"></i> 匯出</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th width="35%">物品名稱</th>
+                                    <th width="35%">追蹤單號</th>
+                                    <th width="20%">重量 (kg)</th>
+                                    <th width="10%"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="item-list"></tbody>
+                        </table>
+                    </div>
+                    <button class="btn btn-link text-decoration-none p-0" onclick="addItem()"><i class="bi bi-plus-circle-fill"></i> 新增物品...</button>
+                </div>
+            </div>
+            
+            <button class="btn btn-primary btn-lg w-100 shadow mb-4" onclick="optimize()">
+                <i class="bi bi-lightning-charge-fill me-2"></i>執行優化計算
+            </button>
+
+            <div id="result-section" style="display: none;">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="mb-0">計算結果</h4>
+                    <button class="btn btn-success btn-sm" onclick="downloadImage()">
+                        <i class="bi bi-file-earmark-image me-1"></i>下載結果圖
+                    </button>
+                </div>
+
+                <div id="printable-area" class="shadow-sm">
+                    <div id="quick-summary-container"></div>
+                    <div id="parcel-details-container" class="mt-4"></div>
+                    <div class="text-center text-muted small mt-4 border-top pt-2">
+                        由「集貨大師」自動計算產生
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<input type="file" id="csv-file" accept=".csv" style="display:none" onchange="importCSV(this)">
+
+<script>
+    // 初始化增加一行
+    addItem();
+
+    function getConfig() {
+        return {
+            first_kg: document.getElementById('cfg_first').value,
+            next_kg: document.getElementById('cfg_next').value,
+            threshold: document.getElementById('cfg_threshold').value,
+            surcharge: document.getElementById('cfg_surcharge').value
+        };
+    }
+
+    async function optimize() {
+        const rows = document.querySelectorAll('.item-row');
+        const items = Array.from(rows).map(row => ({
+            name: row.querySelector('.name').value || '未命名',
+            tracking_no: row.querySelector('.tracking').value || '-',
+            weight: parseFloat(row.querySelector('.weight').value) || 0
+        })).filter(i => i.weight > 0);
+
+        if(items.length === 0) { alert("請至少輸入一個有效物品"); return; }
+
+        // 顯示讀取中狀態...
+        const btn = document.querySelector('button[onclick="optimize()"]');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>計算中...';
+        btn.disabled = true;
+
+        try {
+            const config = getConfig();
+            const res = await fetch('/calculate', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({items, config})
+            });
+            const data = await res.json();
+            renderResults(data);
+            // 顯示結果區域
+            document.getElementById('result-section').style.display = 'block';
+            // 滾動到結果區
+            document.getElementById('result-section').scrollIntoView({behavior: 'smooth'});
+        } catch (e) {
+            alert("計算發生錯誤，請檢查輸入");
+            console.error(e);
+        } finally {
+             // 恢復按鈕狀態
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    }
+
+    function renderResults(data) {
+        // 渲染摘要
+        document.getElementById('quick-summary-container').innerHTML = `
+            <div class="card bg-primary text-white">
+                <div class="card-body text-center p-4">
+                    <h5 class="mb-3 opacity-75">最佳總運費方案</h5>
+                    <h1 class="display-5 fw-bold mb-3">NT$ ${data.optimized_total}</h1>
+                    <div class="d-inline-block bg-white text-primary rounded-pill px-3 py-2 fw-bold shadow-sm">
+                        ✨ 已為您節省 NT$ ${data.savings}
+                    </div>
+                    <div class="mt-3 small opacity-75">
+                        (若全數合併寄送原價為: NT$ ${data.all_in_one_cost})
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // 渲染包裹詳情
+        let html = '<h5 class="mb-3 text-dark border-bottom pb-2">📦 建議拆分詳情</h5>';
+        data.parcels.forEach((p, idx) => {
+            html += `
+                <div class="card mb-3 parcel-card bg-light">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-7 border-end">
+                                <h6 class="text-success fw-bold mb-2">包裹 #${idx+1} <span class="badge bg-secondary ms-2">${p.weight.toFixed(2)} kg</span></h6>
+                                <ul class="list-unstyled small mb-0 ps-2">
+                                    ${p.items.map(it => `<li class="mb-1">▪ ${it.name} <span class="text-muted">(${it.tracking})</span></li>`).join('')}
+                                </ul>
+                            </div>
+                            <div class="col-md-5 d-flex flex-column justify-content-center ps-4">
+                                <div class="d-flex justify-content-between small mb-1"><span>基礎運費:</span><span>$${p.base_cost}</span></div>
+                                <div class="d-flex justify-content-between small text-danger mb-2"><span>超件加價:</span><span>+$${p.surcharge}</span></div>
+                                <div class="d-flex justify-content-between fw-bold pt-2 border-top border-secondary"><span>本包裹小計:</span><span class="fs-5">NT$ ${p.total}</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+        });
+        document.getElementById('parcel-details-container').innerHTML = html;
+    }
+
+    // === 新增：下載圖片功能 ===
+    function downloadImage() {
+        const element = document.getElementById('printable-area');
+        const btn = document.querySelector('button[onclick="downloadImage()"]');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>生成中...';
+
+        html2canvas(element, {
+            scale: 2, // 提高解析度，讓圖片更清晰
+            useCORS: true, // 允許跨域圖片（如果有的話）
+            backgroundColor: '#ffffff' // 確保背景是白色
+        }).then(canvas => {
+            // 創建一個臨時的下載連結
+            const link = document.createElement('a');
+            link.download = `集貨優化結果_${new Date().toISOString().slice(0,10)}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+
+            // 恢復按鈕
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-file-earmark-image me-1"></i>下載結果圖';
+        }).catch(err => {
+            alert("圖片生成失敗");
+            console.error(err);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-file-earmark-image me-1"></i>下載結果圖';
+        });
+    }
+    // =======================
+
+    function addItem(name='', tracking='', weight='') {
+        const div = document.createElement('tr');
+        div.className = 'item-row';
+        div.innerHTML = `
+            <td><input type="text" class="form-control name" value="${name}" placeholder="品名"></td>
+            <td><input type="text" class="form-control tracking" value="${tracking}" placeholder="單號"></td>
+            <td><input type="number" step="0.01" class="form-control weight" value="${weight}" placeholder="0.00"></td>
+            <td class="text-center"><button class="btn btn-outline-danger btn-sm" onclick="this.closest('tr').remove()"><i class="bi bi-trash"></i></button></td>
+        `;
+        document.getElementById('item-list').appendChild(div);
+    }
+
+    // ... (保留 CSV 匯入匯出函數，與之前相同，省略以節省篇幅)
+    function exportCSV() {
+        const rows = document.querySelectorAll('.item-row');
+        const data = Array.from(rows).map(row => ({
+            name: row.querySelector('.name').value,
+            tracking: row.querySelector('.tracking').value,
+            weight: row.querySelector('.weight').value
+        })).filter(i => i.name || i.weight); else return alert("無資料可匯出");
+        const csv = Papa.unparse(data);
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "item_list.csv";
+        link.click();
+    }
+    function importCSV(input) {
+        if (input.files && input.files[0]) {
+            Papa.parse(input.files[0], {
+                header: true, skipEmptyLines: true,
+                complete: function(results) {
+                    document.getElementById('item-list').innerHTML = '';
+                    results.data.forEach(row => { addItem(row.name, row.tracking, row.weight); });
+                }
+            });
+        }
+        input.value = ''; 
+    }
+</script>
+</body>
+</html>
