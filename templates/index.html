@@ -258,9 +258,9 @@
     }
 
     // Make sure to call it once when the page loads so the list isn't empty
-    // document.addEventListener('DOMContentLoaded', () => {
-    //     addItem(); 
-    // });
+    document.addEventListener('DOMContentLoaded', () => {
+        addItem(); 
+    });
 
     // ... (保留 CSV 匯入匯出函數，與之前相同，省略以節省篇幅)
     function exportCSV() {
