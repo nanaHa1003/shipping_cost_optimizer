@@ -237,16 +237,30 @@
     // =======================
 
     function addItem(name='', tracking='', weight='') {
-        const div = document.createElement('tr');
-        div.className = 'item-row';
-        div.innerHTML = `
+        const tbody = document.getElementById('item-list');
+    
+        // Create a table row element
+        const tr = document.createElement('tr');
+        tr.className = 'item-row';
+    
+        tr.innerHTML = `
             <td><input type="text" class="form-control name" value="${name}" placeholder="品名"></td>
             <td><input type="text" class="form-control tracking" value="${tracking}" placeholder="單號"></td>
             <td><input type="number" step="0.01" class="form-control weight" value="${weight}" placeholder="0.00"></td>
-            <td class="text-center"><button class="btn btn-outline-danger btn-sm" onclick="this.closest('tr').remove()"><i class="bi bi-trash"></i></button></td>
+            <td class="text-center">
+                <button class="btn btn-outline-danger btn-sm" onclick="this.closest('tr').remove()">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
         `;
-        document.getElementById('item-list').appendChild(div);
+    
+        tbody.appendChild(tr);
     }
+
+    // Make sure to call it once when the page loads so the list isn't empty
+    // document.addEventListener('DOMContentLoaded', () => {
+    //     addItem(); 
+    // });
 
     // ... (保留 CSV 匯入匯出函數，與之前相同，省略以節省篇幅)
     function exportCSV() {
