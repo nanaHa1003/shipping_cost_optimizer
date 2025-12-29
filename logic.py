@@ -35,7 +35,7 @@ class ShippingOptimizer:
 
     def solve(self, items):
         n = len(items)
-        dp = [float('inf')] * (n + 1)
+        dp = [float("inf")] * (n + 1)
         dp[0] = 0
         split_at = [0] * (n + 1)
 

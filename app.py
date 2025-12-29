@@ -5,23 +5,23 @@ from flask_talisman import Talisman
 app = Flask(__name__)
 Talisman(app, content_security_policy=None) # 強制 HTTPS 並加入安全標頭
 
-@app.route('/')
+@app.route("/")
 def index():
-    return render_template('index.html')
+    return render_template("index.html")
 
-@app.route('/calculate', methods=['POST'])
+@app.route("/calculate", methods=["POST"])
 def calculate():
     data = request.json
     # 獲取前端傳來的自定義配置
-    cfg = data.get('config', {})
+    cfg = data.get("config", {})
     opt = ShippingOptimizer(
-        first_kg_cost=float(cfg.get('first_kg', 137)),
-        next_kg_cost=float(cfg.get('next_kg', 112)),
-        surcharge_threshold=int(cfg.get('threshold', 8)),
-        surcharge_fee=float(cfg.get('surcharge', 5))
+        first_kg_cost=float(cfg.get("first_kg", 137)),
+        next_kg_cost=float(cfg.get("next_kg", 112)),
+        surcharge_threshold=int(cfg.get("threshold", 8)),
+        surcharge_fee=float(cfg.get("surcharge", 5))
     )
     
-    items = [Item(i['name'], i['weight'], i['tracking_no']) for i in data['items']]
+    items = [Item(i["name"], i["weight"], i["tracking_no"]) for i in data["items"]]
     optimized_total, result_parcels, all_in_one_cost = opt.solve(items)
     
     response = {
@@ -32,7 +32,7 @@ def calculate():
     }
 
     for p in result_parcels:
-        total, base, sur = optimizer.calculate_detailed_cost(p)
+        total, base, sur = opt.calculate_detailed_cost(p)
         response["parcels"].append({
             "items": [{"name": it.name, "tracking": it.tracking_no} for it in p],
             "weight": sum(it.weight for it in p),
@@ -42,5 +42,5 @@ def calculate():
         })
     return jsonify(response)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run(debug=True)
